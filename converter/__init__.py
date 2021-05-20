@@ -33,6 +33,7 @@ class Converter:
         self.remote_ingest_folder = PurePosixPath(remote_ingest_folder)
         self.remote_output_folder = PurePosixPath(remote_output_folder)
         self.encoder = encoder
+        self.allowed_size_increase = 1.3 # skips uploading of file that conversion caused it to balloon to 1.3 times the size or larger
 
     def execute(self):
         while True:
@@ -76,18 +77,33 @@ class Converter:
         else:
             raise RuntimeError(f"Convert failed for file: {local_file}")
 
-        for attempt in range(3):
-            # upload file
-            remote_converted_file = self.upload_file(local_converted_file, self.remote_output_folder)
-            local_checksum = self.get_local_checksum(local_converted_file)
-            remote_checksum = self.get_remote_checksum(remote_converted_file)
-            # check checksum
-            if local_checksum == remote_checksum:
-                break
+        # compare 2 files
+        local_file_size = local_file.stat().st_size
+        local_converted_file_size = local_converted_file.stat().st_size
+
+        should_upload_converted_file = True
+        if local_converted_file_size > local_file_size:
+            size_increase = local_converted_file_size / local_file_size
+            # skip uploading the file if we have increase compared to original size
+            if size_increase > self.allowed_size_increase:
+                should_upload_converted_file = False
+
+        if should_upload_converted_file:
+            for attempt in range(3):
+                # upload file
+                remote_converted_file = self.upload_file(local_converted_file, self.remote_output_folder)
+                local_checksum = self.get_local_checksum(local_converted_file)
+                remote_checksum = self.get_remote_checksum(remote_converted_file)
+                # check checksum
+                if local_checksum == remote_checksum:
+                    break
+                else:
+                    self.logger.warning(f"Checksums after upload don't match, file: {local_converted_file}, attempt: {attempt+1}")
             else:
-                self.logger.warning(f"Checksums after upload don't match, file: {local_converted_file}, attempt: {attempt+1}")
+                raise RuntimeError(f"Checksums after upload never matched, file: {selected_file}")
         else:
-            raise RuntimeError(f"Checksums after upload never matched, file: {selected_file}")
+            # we should just move the file to the output folder, but add "processed" to the name
+            self.copy_and_rename_file(selected_file, self.remote_output_folder)
 
         # delete local files
         os.remove(local_file)
@@ -103,6 +119,14 @@ class Converter:
         all_rows = p.split("\n")
         all_files = filter(lambda x: len(x), all_rows)
         return list(map(lambda x: remote_folder / x, all_files))
+
+    def copy_and_rename_file(self, remote_file: PurePosixPath, remote_folder: PurePosixPath) -> Path:
+        new_file_name = f"{remote_file.stem}.processed{remote_file.suffix}"
+        new_file_path = remote_folder / new_file_name
+        cmd = [
+            "ssh", self.remote_server, "cp", f'"{remote_file}"', f'"{new_file_path}"'
+        ]
+        p = subprocess.check_call(cmd)
 
     def download_file(self, remote_file: PurePosixPath) -> Path:
         local_file = Path(".") / remote_file.name
