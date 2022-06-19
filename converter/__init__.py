@@ -117,7 +117,7 @@ class Converter:
         ]
         p = subprocess.check_output(cmd).decode(sys.stdout.encoding)
         all_rows = p.split("\n")
-        all_files = filter(lambda x: len(x), all_rows)
+        all_files = filter(lambda x: len(x) and not x.startswith('@'), all_rows)
         return list(map(lambda x: remote_folder / x, all_files))
 
     def copy_and_rename_file(self, remote_file: PurePosixPath, remote_folder: PurePosixPath) -> Path:
@@ -133,7 +133,7 @@ class Converter:
         cmd = [
             "scp", "-T", f'{self.remote_server}:"{remote_file}"', f'{local_file}'
         ]
-        p = subprocess.check_call(cmd)
+        p = subprocess.check_call(cmd, stdout=sys.stdout, stderr=sys.stderr)
         return local_file
 
     def upload_file(self, local_file: Path, remote_folder: PurePosixPath) -> Path:
@@ -141,7 +141,7 @@ class Converter:
         cmd = [
             "scp", "-T", f'{local_file}', f'{self.remote_server}:"{remote_file}"'
         ]
-        p = subprocess.check_call(cmd)
+        p = subprocess.check_call(cmd, stdout=sys.stdout, stderr=sys.stderr)
         return remote_file
 
     def get_remote_checksum(self, remote_file: PurePosixPath) -> str:

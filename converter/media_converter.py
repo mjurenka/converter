@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 import subprocess
 import traceback
@@ -22,5 +23,5 @@ def convert_video(local_file: Path, encoder, bitrate="10M") -> Path:
         '-movflags', 'faststart',
         str(output_file),
     ]
-    subprocess.check_call(command)
+    subprocess.check_call(command, stdout=sys.stdout, stderr=sys.stderr)
     return output_file
