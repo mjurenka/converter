@@ -3,9 +3,9 @@ from converter import Converter, ENCODER
 def start():
     config = {
         "remote_server": "mediaserver",
-        "username": "pi",
-        "remote_ingest_folder": "/mnt/disk-4tb/vr/convert-ingest",
-        "remote_output_folder": "/mnt/disk-4tb/vr/convert-output",
+        "username": "martin",
+        "remote_ingest_folder": "/volume2/vr-video/convert-ingest",
+        "remote_output_folder": "/volume2/vr-video/convert-output",
         "encoder": ENCODER.NVIDIA.value
     }
     c = Converter(**config)
